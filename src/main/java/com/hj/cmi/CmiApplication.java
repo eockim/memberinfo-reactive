@@ -36,6 +36,7 @@ public class CmiApplication {
         }
     }
     public static void main(String[] args) {
+
         SpringApplication.run(CmiApplication.class, args);
     }
 }
