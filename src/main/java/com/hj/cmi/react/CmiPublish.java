@@ -91,7 +91,7 @@ public class CmiPublish {
                 }
             };
     }
-
+//,
     private static <T> Subscriber<T> logSub() {
         return new Subscriber<T>() {
             @Override
