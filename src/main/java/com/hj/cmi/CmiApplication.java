@@ -1,6 +1,5 @@
 package com.hj.cmi;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -8,32 +7,33 @@ import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import org.springframework.beans.factory.annotation.Required;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ReactiveHttpOutputMessage;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
-import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @SpringBootApplication
+@EnableAsync
 public class CmiApplication {
 
 
@@ -60,7 +60,7 @@ public class CmiApplication {
 
     @Data
     @RequiredArgsConstructor
-    static class Member2{
+    static class MemberSearch{
 
         @NonNull private String search_keyword;
         @NonNull private String sch_grade;
@@ -70,10 +70,23 @@ public class CmiApplication {
 
     }
 
+
+    @Service
+    public static class MyService {
+
+        @Async
+        public CompletableFuture<Object> list(Map<String, Object> req) {
+            return CompletableFuture.completedFuture(req.get("list"));
+        }
+    }
+
     @RestController
     public static class Controller {
 
         WebClient client = WebClient.create();
+
+        @Autowired
+        private MyService myService;
 
         @RequestMapping("/hello")
         public Publisher<String> hello(String name) {
@@ -98,7 +111,7 @@ public class CmiApplication {
         }
 
         @RequestMapping("/cmi")
-        public Mono<String> cmi() {
+        public Mono<Map> cmi() {
 
 //            String response = client
 //                    .post()
@@ -128,13 +141,19 @@ public class CmiApplication {
                         Mono<ClientResponse> response = null;
                         try {
 
-                            MultiValueMap map = new LinkedMultiValueMap();
-                            map.add("search_keyword", "");
-                            map.add("sch_grade", "");
-                            map.add("sch_YN", "N");
-                            map.add("sch_sex", "");
-                            map.add("sch_order", "");
+                            MultiValueMap<String, Object>  map = new LinkedMultiValueMap();
 
+                            //map.deepCopy();
+                            map.add("search_keyword", "".toString());
+                            map.add("sch_grade", "".toString());
+                            map.add("sch_YN", "N".toString());
+                            map.add("sch_sex", "".toString());
+                            map.add("sch_order", "".toString());
+
+//                            BodyInserter<MultiValueMap<String, String>, ClientHttpRequest>
+//                                    inserter = BodyInserters.fromFormData(map);
+
+                            //eyJ0eXBlIjoiSldUIiwicmVnRGF0ZSI6MTUyNDU4MDYwNDIwNywiYWxnIjoiSFMyNTYifQ.eyJleHAiOjE1MjQ2NjcwMDQsIm5pY2tuYW1lIjoiaGota2ltIiwicm9sZSI6MX0.0ff8IlwNkg9QZ0B0o8GjxyO67T-S1UkB4ZGhgNsDfzk
                             log.debug("name {}", URLEncoder.encode(body.get("name").toString(), "UTF-8"));
                             log.debug("type {}", URLEncoder.encode(body.get("type").toString(), "UTF-8"));
                             log.debug("post_name {}", URLEncoder.encode(body.get("post_name").toString(), "UTF-8"));
@@ -145,12 +164,17 @@ public class CmiApplication {
                                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                                     .acceptCharset(Charset.forName("UTF-8"))
                                     .cookie("SESSION_USER_ID", "hj-kim")
-                                    .cookie("SESSION_USER_NAME", URLEncoder.encode("김형준", "UTF-8"))
-                                    .cookie("SESSION_CHECK_ID", URLEncoder.encode("1", "UTF-8"))
-                                    .cookie("SESSION_POST_NAME", URLEncoder.encode("개발그룹", "UTF-8"))
-                                    .cookie("SESSION_GD_NAME", URLEncoder.encode("대리", "UTF-8"))
+                                    .cookie("SESSION_USER_NAME", URLEncoder.encode(body.get("name").toString(), "UTF-8"))
+                                    .cookie("SESSION_CHECK_ID", URLEncoder.encode(body.get("type").toString(), "UTF-8"))
+                                    .cookie("SESSION_POST_NAME", URLEncoder.encode(body.get("post_name").toString(), "UTF-8"))
+                                    .cookie("SESSION_GD_NAME", URLEncoder.encode(body.get("gd_name").toString(), "UTF-8"))
                                     .cookie("loginToken", "eyJ0eXBlIjoiSldUIiwicmVnRGF0ZSI6MTUyNDU4MDYwNDIwNywiYWxnIjoiSFMyNTYifQ.eyJleHAiOjE1MjQ2NjcwMDQsIm5pY2tuYW1lIjoiaGota2ltIiwicm9sZSI6MX0.0ff8IlwNkg9QZ0B0o8GjxyO67T-S1UkB4ZGhgNsDfzk")
-                                    .body(BodyInserters.fromObject(new Member2("", "", "N", "", "")))
+                                    .body(BodyInserters.fromObject(new MemberSearch("", "", "N", "", "")))
+//                                    .body(BodyInserters.fromMultipartData("search_keyword", "")
+//                                            .with("sch_grade","")
+//                                            .with("sch_YN","N")
+//                                            .with("sch_sex","")
+//                                            .with("sch_order",""))
                                     .exchange();
 
                         } catch (UnsupportedEncodingException e) {
@@ -158,8 +182,9 @@ public class CmiApplication {
                         }
 
                         return response;
-                    }).flatMap(c2 -> c2.bodyToMono(String.class));
-
+                    })
+                    .flatMap(c2 -> c2.bodyToMono(Map.class))
+                    .flatMap(res2 -> Mono.fromCompletionStage(myService.list(res2)));
 
         }
     }
