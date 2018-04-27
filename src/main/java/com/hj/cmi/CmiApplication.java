@@ -17,6 +17,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -111,17 +112,17 @@ public class CmiApplication {
     public static class MyService {
 
         @Async
-        public CompletableFuture<List<Member<Object>>> list(Map<String, Object> req) {
+        public CompletableFuture<List<Member<String>>> list(Map<String, Object> req) {
 
             //Stream.(ArrayList<HashMap<String, Object>>) req.get("list")
 
             Stream<Map<String, Object>> stream = ((List<Map<String, Object>>) req.get("list"))
                     .stream();
 
-            List<Member<Object>> memberList = stream.map(x ->
-                    new Member<>(x.get("USER_EMAIL"), x.get("USER_BYE"), x.get("USER_ID"), x.get("BOOK_LOCATION"), x.get("POST_NAME")
-                            , x.get("LAST_YEAR_USE_VOC"), x.get("THIS_YEAR_USE_VOC"), x.get("USER_U2"), x.get("ANNUAL_VACATION")
-                            , x.get("MONTHLY_VACATION"), x.get("USER_NAME"), x.get("LEFT_VOC"), x.get("GD_ORDER"), x.get("USER_GRADE"), x.get("USER_HPHONE"), x.get("USER_CPHONE"))
+            List<Member<String>> memberList = stream.map(x ->
+                    new Member<String>(x.get("USER_EMAIL")+"", x.get("USER_BYE")+"", x.get("USER_ID")+"", x.get("BOOK_LOCATION")+"", x.get("POST_NAME")+""
+                            , x.get("LAST_YEAR_USE_VOC")+"", x.get("THIS_YEAR_USE_VOC")+"", x.get("USER_U2")+"", x.get("ANNUAL_VACATION")+""
+                            , x.get("MONTHLY_VACATION")+"", x.get("USER_NAME")+"", x.get("LEFT_VOC")+"", x.get("GD_ORDER")+"", x.get("USER_GRADE")+"", x.get("USER_HPHONE")+"", x.get("USER_CPHONE")+"")
             ).collect(Collectors.toList());
 
             return CompletableFuture.completedFuture(memberList);
@@ -150,15 +151,19 @@ public class CmiApplication {
         }
 
         @Async
-        public CompletableFuture<List<Member<Object>>> vacationSort(List<Member<Object>> res){
+        public CompletableFuture<List<Map<String, String>>> vacationSort(List<Member<String>> res,  String type){
 
-//            res.stream()
-//                    .sorted( (c1,c2) -> Integer.parseInt(c1.getThisYearUseVoc() +"") > Integer.parseInt(c2.getThisYearUseVoc() +"") ? -1 : 1)
-//                    .collect(Collectors.toList())
+            int sort = type.equals("desc") ? -1 : type.equals("asc") ? 1 : 1;
 
-            return CompletableFuture.completedFuture(res.stream()
-                    //.sorted( (c1,c2) -> Double.parseDouble(c1.getThisYearUseVoc() +"") > Double.parseDouble(c2.getThisYearUseVoc() +"") ? -1 : 1)
-                   // .sorted(Comparator.comparing(Member.<Object>))
+            //log.info("vacation {}", (int)(4.5 -4));
+            return CompletableFuture.completedFuture( res.stream()
+                    .sorted((c1, c2) -> Double.compare(Double.parseDouble(c1.getThisYearUseVoc()), Double.parseDouble(c2.getThisYearUseVoc())) * sort )
+                    .map(x -> {
+                        Map<String, String> map = new HashMap<String, String>();
+                        map.put("name", x.getUserName());
+                        map.put("thisYearUseVoc", x.getThisYearUseVoc());
+                        return map;
+                    })
                     .collect(Collectors.toList()));
         }
     }
@@ -194,19 +199,19 @@ public class CmiApplication {
         }
 
         @GetMapping("/cmi")
-        public Mono<List<Member<Object>>> cmi() {
+        public Mono<List<Member<String>>> cmi() {
 
             return getMemberMono();
         }
 
-        @GetMapping("/cmi/vac")
-        public Mono<List<Member<Object>>> vacation(){
+        @GetMapping("/cmi/vac/{type}")
+        public Mono<List<Map<String, String>>> vacation(@PathVariable("type") String type){
 
             return getMemberMono()
-                    .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res)));
+                    .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, type)));
         }
 
-        private Mono<List<Member<Object>>> getMemberMono() {
+        private Mono<List<Member<String>>> getMemberMono() {
             return client
                     .post()
                     .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/login"))
