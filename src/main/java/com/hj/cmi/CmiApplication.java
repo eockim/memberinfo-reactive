@@ -8,66 +8,155 @@ import lombok.extern.slf4j.Slf4j;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-import org.springframework.beans.factory.annotation.Required;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.http.ReactiveHttpOutputMessage;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.reactive.function.BodyInserter;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @SpringBootApplication
+@EnableAsync
 public class CmiApplication {
 
 
     @Data
     @RequiredArgsConstructor
-    static class Member{
+    static class MemberLogin {
 
-        @NonNull private String radioCheck;
-        @NonNull private String id;
-        @NonNull private String pw;
+        @NonNull
+        private String radioCheck;
+        @NonNull
+        private String id;
+        @NonNull
+        private String pw;
         private String result;
         private String gd_name;
         private String name;
         private String post_name;
         private String type;
 
-//        private String search_keyword ="";
-//        private String sch_grade ="";
-//        private String sch_YN = "N";
-//        private String sch_sex = "";
-//        private String sch_order= "";
-
     }
 
     @Data
     @RequiredArgsConstructor
-    static class Member2{
+    static class MemberSearch {
 
-        @NonNull private String search_keyword;
-        @NonNull private String sch_grade;
-        @NonNull private String sch_YN;
-        @NonNull private String sch_sex;
-        @NonNull private String sch_order;
+        @NonNull
+        private String search_keyword;
+        @NonNull
+        private String sch_grade;
+        @NonNull
+        private String sch_YN;
+        @NonNull
+        private String sch_sex;
+        @NonNull
+        private String sch_order;
 
+    }
+
+    @Data
+    @AllArgsConstructor
+    static class Member<T> {
+
+        private T userEmail;
+        private T userBye;
+        private T userId;
+        private T bookLocation;
+        private T postName;
+        private T lastYearUseVoc;
+        private T thisYearUseVoc;
+        private T userU2;
+        private T annualVocation;
+        private T monthlyVacation;
+        private T userName;
+        private T leftVoc;
+        private T gdOrder;
+        private T userGrade;
+        private T userHphone;
+        private T userCphone;
+
+    }
+
+
+    @Service
+    public static class MyService {
+        //
+
+        @Async
+        public CompletableFuture<List<Member<String>>> list(Map<String, Object> req) {
+
+            Stream<Map<String, Object>> stream = ((List<Map<String, Object>>) req.get("list"))
+                    .stream();
+
+            List<Member<String>> memberList = stream.map(x ->
+                    new Member<String>(x.get("USER_EMAIL")+"", x.get("USER_BYE")+"", x.get("USER_ID")+"", x.get("BOOK_LOCATION")+"", x.get("POST_NAME")+""
+                            , x.get("LAST_YEAR_USE_VOC")+"", x.get("THIS_YEAR_USE_VOC")+"", x.get("USER_U2")+"", x.get("ANNUAL_VACATION")+""
+                            , x.get("MONTHLY_VACATION")+"", x.get("USER_NAME")+"", x.get("LEFT_VOC")+"", x.get("GD_ORDER")+"", x.get("USER_GRADE")+"", x.get("USER_HPHONE")+"", x.get("USER_CPHONE")+"")
+            ).collect(Collectors.toList());
+
+            return CompletableFuture.completedFuture(memberList);
+        }
+
+        @Async
+        public CompletableFuture<Map<String, String>> login(ClientResponse res) {
+
+            Map<String, String> loginMap = new HashMap<String, String>();
+
+            loginMap = res.bodyToMono(Map.class).block();
+
+            try {
+
+                loginMap.put("loginToken", res.cookies().getFirst("loginToken").getValue());
+                loginMap.put("name", URLEncoder.encode(loginMap.get("name").toString(), "UTF-8"));
+                loginMap.put("type", URLEncoder.encode(loginMap.get("type").toString(), "UTF-8"));
+                loginMap.put("post_name", URLEncoder.encode(loginMap.get("post_name").toString(), "UTF-8"));
+                loginMap.put("gd_name", URLEncoder.encode(loginMap.get("gd_name").toString(), "UTF-8"));
+
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+
+            return CompletableFuture.completedFuture(loginMap);
+        }
+
+        @Async
+        public CompletableFuture<List<Map<String, String>>> vacationSort(List<Member<String>> res,  String type){
+
+            int sort = type.equals("desc") ? -1 : type.equals("asc") ? 1 : 1;
+
+            //log.info("vacation {}", (int)(4.5 -4));
+            return CompletableFuture.completedFuture( res.stream()
+                    .sorted((c1, c2) -> Double.compare(Double.parseDouble(c1.getThisYearUseVoc()), Double.parseDouble(c2.getThisYearUseVoc())) * sort )
+                    .map(x -> {
+                        Map<String, String> map = new HashMap<String, String>();
+                        map.put("name", x.getUserName());
+                        map.put("thisYearUseVoc", x.getThisYearUseVoc());
+                        return map;
+                    })
+                    .collect(Collectors.toList()));
+        }
     }
 
     @RestController
@@ -75,7 +164,10 @@ public class CmiApplication {
 
         WebClient client = WebClient.create();
 
-        @RequestMapping("/hello")
+        @Autowired
+        private MyService myService;
+
+        @GetMapping("/hello")
         public Publisher<String> hello(String name) {
 
             return new Publisher<String>() {
@@ -97,71 +189,45 @@ public class CmiApplication {
             };
         }
 
-        @RequestMapping("/cmi")
-        public Mono<String> cmi() {
+        @GetMapping("/cmi")
+        public Mono<List<Member<String>>> cmi() {
 
-//            String response = client
-//                    .post()
-//                    .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/login"))
-//                    .body(inserter3)
-//                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//                    .retrieve()
-//                    .bodyToMono(String.class)
-//                    .block();
+            return getMemberMono();
+        }
 
-            //System.out.println(response)
-            
-//            return WebClient.create().post().uri(URI.create("http://gw.dkitec.com:8080/intranet-api/login"))
-//                    .body(inserter3).header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-//                    .retrieve().bodyToMono(String.class);
+        @GetMapping("/cmi/vac/{type}")
+        public Mono<List<Map<String, String>>> vacation(@PathVariable("type") String type){
 
+            return getMemberMono()
+                    .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, type)));
+        }
+
+        private Mono<List<Member<String>>> getMemberMono() {
             return client
                     .post()
                     .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/login"))
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body(BodyInserters.fromObject(new Member("1","hj-kim", "0000")))
+                    .body(BodyInserters.fromObject(new MemberLogin("1", "hj-kim", "0000")))
                     .exchange()
-                    .flatMap(c -> c.bodyToMono(Map.class))
+                    .flatMap(r -> Mono.fromCompletionStage(myService.login(r)))
                     .flatMap(body ->
-
-                    {
-                        Mono<ClientResponse> response = null;
-                        try {
-
-                            MultiValueMap map = new LinkedMultiValueMap();
-                            map.add("search_keyword", "");
-                            map.add("sch_grade", "");
-                            map.add("sch_YN", "N");
-                            map.add("sch_sex", "");
-                            map.add("sch_order", "");
-
-                            log.debug("name {}", URLEncoder.encode(body.get("name").toString(), "UTF-8"));
-                            log.debug("type {}", URLEncoder.encode(body.get("type").toString(), "UTF-8"));
-                            log.debug("post_name {}", URLEncoder.encode(body.get("post_name").toString(), "UTF-8"));
-                            log.debug("gd_name {}", URLEncoder.encode(body.get("gd_name").toString(), "UTF-8"));
-                            log.debug("id {}", body.get("name").toString());
-                            response = client.post()
-                                    .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/member/list") )
+                            client.post()
+                                    .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/member/list"))
                                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                                     .acceptCharset(Charset.forName("UTF-8"))
-                                    .cookie("SESSION_USER_ID", "hj-kim")
-                                    .cookie("SESSION_USER_NAME", URLEncoder.encode("김형준", "UTF-8"))
-                                    .cookie("SESSION_CHECK_ID", URLEncoder.encode("1", "UTF-8"))
-                                    .cookie("SESSION_POST_NAME", URLEncoder.encode("개발그룹", "UTF-8"))
-                                    .cookie("SESSION_GD_NAME", URLEncoder.encode("대리", "UTF-8"))
-                                    .cookie("loginToken", "eyJ0eXBlIjoiSldUIiwicmVnRGF0ZSI6MTUyNDU4MDYwNDIwNywiYWxnIjoiSFMyNTYifQ.eyJleHAiOjE1MjQ2NjcwMDQsIm5pY2tuYW1lIjoiaGota2ltIiwicm9sZSI6MX0.0ff8IlwNkg9QZ0B0o8GjxyO67T-S1UkB4ZGhgNsDfzk")
-                                    .body(BodyInserters.fromObject(new Member2("", "", "N", "", "")))
-                                    .exchange();
-
-                        } catch (UnsupportedEncodingException e) {
-                            e.printStackTrace();
-                        }
-
-                        return response;
-                    }).flatMap(c2 -> c2.bodyToMono(String.class));
-
-
+                                    .cookie("SESSION_USER_ID", body.get("id"))
+                                    .cookie("SESSION_USER_NAME", body.get("name"))
+                                    .cookie("SESSION_CHECK_ID", body.get("type"))
+                                    .cookie("SESSION_POST_NAME", body.get("post_name"))
+                                    .cookie("SESSION_GD_NAME", body.get("gd_name"))
+                                    .cookie("loginToken", body.get("loginToken"))
+                                    .body(BodyInserters.fromObject(new MemberSearch("", "", "N", "", "")))
+                                    .exchange()
+                    )
+                    .flatMap(c2 ->c2.bodyToMono(Map.class))
+                    .flatMap(res2 ->Mono.fromCompletionStage(myService.list(res2)));
         }
+
     }
 
 
