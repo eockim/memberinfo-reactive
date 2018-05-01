@@ -152,6 +152,7 @@ public class CmiApplication {
                     .map(x -> {
                         Map<String, String> map = new HashMap<String, String>();
                         map.put("name", x.getUserName());
+                        map.put("userId", x.getUserId());
                         map.put("thisYearUseVoc", x.getThisYearUseVoc());
                         return map;
                     })
