@@ -31,6 +31,7 @@ import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -146,7 +147,6 @@ public class CmiApplication {
 
             int sort = type.equals("desc") ? -1 : type.equals("asc") ? 1 : 1;
 
-            //log.info("vacation {}", (int)(4.5 -4));
             return CompletableFuture.completedFuture( res.stream()
                     .sorted((c1, c2) -> Double.compare(Double.parseDouble(c1.getThisYearUseVoc()), Double.parseDouble(c2.getThisYearUseVoc())) * sort )
                     .map(x -> {
@@ -154,6 +154,8 @@ public class CmiApplication {
                         map.put("name", x.getUserName());
                         map.put("userId", x.getUserId());
                         map.put("thisYearUseVoc", x.getThisYearUseVoc());
+                        map.put("bookLocation", x.getBookLocation());
+                        map.put("postName", x.getPostName());
                         return map;
                     })
                     .collect(Collectors.toList()));
@@ -191,26 +193,32 @@ public class CmiApplication {
         }
 
         @GetMapping("/cmi")
-        public Mono<List<Member<String>>> cmi() {
+        public Mono<List<Member<String>>> cmi(String rt) {
 
-            return getMemberMono();
+            return getMemberMono(Optional.ofNullable(rt).isPresent() ? rt.toUpperCase().equals("Y") ? true : false : false  );
         }
 
         @GetMapping("/cmi/vac/{type}")
-        public Mono<List<Map<String, String>>> vacation(@PathVariable("type") String type){
+        public Mono<List<Map<String, String>>> vacation(@PathVariable("type") String type, String rt){
 
-            return getMemberMono()
+            return getMemberMono(Optional.ofNullable(rt).isPresent() ? rt.toUpperCase().equals("Y") ? true : false : false  )
                     .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, type)));
         }
 
-        private Mono<List<Member<String>>> getMemberMono() {
+        private Mono<Map<String, String>> getLogin(String userId, String pass){
+
             return client
                     .post()
                     .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/login"))
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body(BodyInserters.fromObject(new MemberLogin("1", "hj-kim", "0000")))
+                    .body(BodyInserters.fromObject(new MemberLogin("1", userId, pass)))
                     .exchange()
-                    .flatMap(r -> Mono.fromCompletionStage(myService.login(r)))
+                    .flatMap(r -> Mono.fromCompletionStage(myService.login(r)));
+
+        }
+
+        private Mono<List<Member<String>>> getMemberMono(boolean isRtm) {
+            return getLogin("hj-kim", "1234")
                     .flatMap(body ->
                             client.post()
                                     .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/member/list"))
@@ -222,7 +230,7 @@ public class CmiApplication {
                                     .cookie("SESSION_POST_NAME", body.get("post_name"))
                                     .cookie("SESSION_GD_NAME", body.get("gd_name"))
                                     .cookie("loginToken", body.get("loginToken"))
-                                    .body(BodyInserters.fromObject(new MemberSearch("", "", "N", "", "")))
+                                    .body(BodyInserters.fromObject(new MemberSearch("", "", isRtm ? "Y":"N", "", "")))
                                     .exchange()
                     )
                     .flatMap(c2 ->c2.bodyToMono(Map.class))
