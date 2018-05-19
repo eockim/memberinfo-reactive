@@ -1,5 +1,6 @@
 package com.hj.cmi;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;
@@ -28,10 +29,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -40,7 +38,6 @@ import java.util.stream.Stream;
 @SpringBootApplication
 @EnableAsync
 public class CmiApplication {
-
 
     @Data
     @RequiredArgsConstructor
@@ -100,16 +97,47 @@ public class CmiApplication {
 
     }
 
+    @Data
+    @AllArgsConstructor
+    static class Project{
+        private String rptFlag;
+        private String pos;
+        private String dept;
+        private String prjPost;
+        private String prjStatus;
+        private String name;
+        private String prjClient;
+        private String prjContent;
+        private String regId;
+        private String prjCode;
+        private String userId;
+        private String fromDt;
+        private String toDt;
+        private String endDt;
+        private String userName;
+        private String prjStatusName;
+        private String color;
+        private String result;
+        private String user_name;
+        private String list;
+
+        public Project(){}
+
+    }
+
 
     @Service
     public static class MyService {
         //
+        final ObjectMapper mapper = new ObjectMapper();
 
         @Async
         public CompletableFuture<List<Member<String>>> list(Map<String, Object> req) {
 
             Stream<Map<String, Object>> stream = ((List<Map<String, Object>>) req.get("list"))
                     .stream();
+
+
 
             List<Member<String>> memberList = stream.map(x ->
                     new Member<String>(x.get("USER_EMAIL")+"", x.get("USER_BYE")+"", x.get("USER_ID")+"", x.get("BOOK_LOCATION")+"", x.get("POST_NAME")+""
@@ -118,6 +146,22 @@ public class CmiApplication {
             ).collect(Collectors.toList());
 
             return CompletableFuture.completedFuture(memberList);
+        }
+
+        @Async
+        public CompletableFuture<List<Project>> listProject(Map<String, Object> req) {
+
+            Stream<Map<String, Object>> stream = ((List<Map<String, Object>>) req.get("list")).stream();
+
+
+            return CompletableFuture.completedFuture(stream.map(x ->
+                            mapper.convertValue(x, Project.class)
+                    ).collect(Collectors.toList())
+                        .stream()
+                        .sorted((cp1, cp2) -> cp1.getUserName().compareTo(cp2.getUserName()))
+                        .collect(Collectors.toList())
+
+            );
         }
 
         @Async
@@ -203,6 +247,28 @@ public class CmiApplication {
 
             return getMemberMono(Optional.ofNullable(rt).isPresent() ? rt.toUpperCase().equals("Y") ? true : false : false  )
                     .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, type)));
+        }
+
+        @GetMapping("/cmi/projects")
+        public Mono<List<Project>> projects(){
+
+            Mono<List<Project>> result = getLogin("hj-kim", "1234")
+                    .flatMap(body -> client.get()
+                            .uri(URI.create("http://gw.dkitec.com:8080/intranet-api/project/list?orderby=1"))
+                            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                            .acceptCharset(Charset.forName("UTF-8"))
+                            .cookie("SESSION_USER_ID", body.get("id"))
+                            .cookie("SESSION_USER_NAME", body.get("name"))
+                            .cookie("SESSION_CHECK_ID", body.get("type"))
+                            .cookie("SESSION_POST_NAME", body.get("post_name"))
+                            .cookie("SESSION_GD_NAME", body.get("gd_name"))
+                            .cookie("loginToken", body.get("loginToken"))
+                            .exchange()
+                    )
+                    .flatMap(c -> c.bodyToMono(HashMap.class))
+                    .flatMap(c2 -> Mono.fromCompletionStage(myService.listProject(c2)));
+
+            return result;
         }
 
         private Mono<Map<String, String>> getLogin(String userId, String pass){
