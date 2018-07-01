@@ -31,6 +31,7 @@ import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -157,9 +158,9 @@ public class CmiApplication {
             return CompletableFuture.completedFuture(stream.map(x ->
                             mapper.convertValue(x, Project.class)
                     ).collect(Collectors.toList())
-                        .stream()
-                        .sorted((cp1, cp2) -> cp1.getUserName().compareTo(cp2.getUserName()))
-                        .collect(Collectors.toList())
+                            .stream()
+                            .sorted((cp1, cp2) -> cp1.getUserName().compareTo(cp2.getUserName()))
+                            .collect(Collectors.toList())
 
             );
         }
@@ -187,12 +188,14 @@ public class CmiApplication {
         }
 
         @Async
-        public CompletableFuture<List<Map<String, String>>> vacationSort(List<Member<String>> res,  String type){
+        public CompletableFuture<List<Map<String, String>>> vacationSort(List<Member<String>> res,  String sort){
 
-            int sort = type.equals("desc") ? -1 : type.equals("asc") ? 1 : 1;
+            AtomicInteger sortNum = new AtomicInteger(1);
+            Optional.<String>ofNullable(sort)
+                    .ifPresent(s -> sortNum.set(s.equals("desc") ? -1 : s.equals("asc") ? 1 : 1 ));
 
             return CompletableFuture.completedFuture( res.stream()
-                    .sorted((c1, c2) -> Double.compare(Double.parseDouble(c1.getThisYearUseVoc()), Double.parseDouble(c2.getThisYearUseVoc())) * sort )
+                    .sorted((c1, c2) -> Double.compare(Double.parseDouble(c1.getThisYearUseVoc()), Double.parseDouble(c2.getThisYearUseVoc())) * sortNum.intValue())
                     .map(x -> {
                         Map<String, String> map = new HashMap<String, String>();
                         map.put("name", x.getUserName());
@@ -242,11 +245,11 @@ public class CmiApplication {
             return getMemberMono(Optional.ofNullable(rt).isPresent() ? rt.toUpperCase().equals("Y") ? true : false : false  );
         }
 
-        @GetMapping("/cmi/vac/{type}")
-        public Mono<List<Map<String, String>>> vacation(@PathVariable("type") String type, String rt){
+        @GetMapping("/cmi/vacation")
+        public Mono<List<Map<String, String>>> vacation(String sort, String rt){
 
             return getMemberMono(Optional.ofNullable(rt).isPresent() ? rt.toUpperCase().equals("Y") ? true : false : false  )
-                    .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, type)));
+                    .flatMap(res -> Mono.fromCompletionStage(myService.vacationSort(res, sort)));
         }
 
         @GetMapping("/cmi/projects")
